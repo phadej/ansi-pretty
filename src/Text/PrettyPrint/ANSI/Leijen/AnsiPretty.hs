@@ -1,43 +1,50 @@
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- |
 -- Module      : Text.Pretty.ANSI.Leijen.AnsiPretty
 -- License     : BSD3
 -- Maintainer  : Oleg Grenrus <oleg.grenrus@iki.fi>
---
--- /Note:/ This module may move into other (own) package.
 module Text.PrettyPrint.ANSI.Leijen.AnsiPretty (
   -- * Class
   AnsiPretty(..),
-  -- * Generic
-  gAnsiPretty,
-  gAnsiPrettyWith,
+  -- * Generics
   AnsiPrettyOpts(..),
   defAnsiPrettyOpts,
-  prettyOpts,
+  -- ** GHC
+  ghcAnsiPretty,
+  ghcAnsiPrettyWith,
+  -- ** SOP
+  sopAnsiPretty,
+  sopAnsiPrettyWith,
+  sopAnsiPrettyS,
   -- * Re-exports
   -- | 'Text.PrettyPrint.ANSI.Leijen'
    module PP,
   ) where
 
-import Data.Char as C
-import Data.List as L
-import Data.Text as T
-import Data.Monoid ((<>))
-import Data.Time
-import Generics.SOP
-import Text.PrettyPrint.ANSI.Leijen as PP hiding ((<>), (<$>), semiBraces, Pretty)
+import           Control.Arrow (first)
+import           Data.List as L
+import           Data.List.CommonPrefix (CommonPrefix(CommonPrefix), getCommonPrefix)
+import           Data.List.NonEmpty as NonEmpty
+import           Data.Semigroup (sconcat, (<>))
+import           Data.Text as T
+import           Data.Time
+import qualified GHC.Generics as GHC
+import           Generics.SOP as SOP
+import           Generics.SOP.GGP as SOP
+import           Text.PrettyPrint.ANSI.Leijen as PP hiding ((<>), (<$>), semiBraces, Pretty)
 
 class AnsiPretty a where
   ansiPretty :: a -> Doc
 
-  default ansiPretty :: (Generic a, HasDatatypeInfo a, All2 AnsiPretty (Code a)) => a -> Doc
-  ansiPretty = gAnsiPretty
+  default ansiPretty :: (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => a -> Doc
+  ansiPretty = ghcAnsiPretty
 
   ansiPrettyList :: [a] -> Doc
   ansiPrettyList = encloseSep (dullgreen lbracket) (dullgreen rbracket) (dullgreen colon) . fmap ansiPretty
@@ -45,50 +52,52 @@ class AnsiPretty a where
 semiBraces :: [Doc] -> Doc
 semiBraces = encloseSep (dullblue lbrace) (dullblue rbrace) (dullblue semi)
 
+prettyNewtype :: ConstructorName -> Doc -> Doc
+prettyNewtype = const id
+
 prettyField :: AnsiPretty a => String -> a -> Doc
 prettyField name value = black (text name) <+> blue equals <+> ansiPretty value
 
-prettyRecord :: String -> [Doc] -> Doc
-prettyRecord name fields = hang 2 (cyan (text name) </> semiBraces fields)
+prettyRecord :: String -> [(FieldName, Doc)] -> Doc
+prettyRecord name fields = hang 2 (cyan (text name) </> semiBraces (L.map (uncurry prettyField) fields'))
+  where fields' = L.map (first (L.drop (L.length fieldNamePrefix))) fields
+        fieldNamePrefix = maybe [] (getCommonPrefix . sconcat) $ (fmap . fmap) (CommonPrefix . fst) (nonEmpty fields)
 
 data AnsiPrettyOpts = AnsiPrettyOpts
-  { poPrettyField :: FieldName -> Doc -> Doc
-  , poPrettyRecord :: ConstructorName -> [Doc] -> Doc
+  { poPrettyNewtype :: ConstructorName -> Doc -> Doc
+  , poPrettyRecord  :: ConstructorName -> [(FieldName, Doc)] -> Doc
   }
  
 defAnsiPrettyOpts :: AnsiPrettyOpts
-defAnsiPrettyOpts = AnsiPrettyOpts prettyField prettyRecord
+defAnsiPrettyOpts = AnsiPrettyOpts prettyNewtype prettyRecord
 
--- | 'PrettyOpts' used in @flowdock-rest@
-prettyOpts :: String -> AnsiPrettyOpts
-prettyOpts prefix = defAnsiPrettyOpts { poPrettyField = poPrettyField defAnsiPrettyOpts . renamer }
-  where renamer name| prefix `L.isPrefixOf` name  = dropTrailingPrime . lowerFirst .  Prelude.drop prefixLen $ name
-                    | otherwise                   = name
-        prefixLen = Prelude.length prefix
-        lowerFirst (x:xs) = C.toLower x : xs
-        lowerFirst xs     = xs
-        dropTrailingPrime []      = []
-        dropTrailingPrime ['\'']  = []
-        dropTrailingPrime (x:xs)  = x : dropTrailingPrime xs
+-- GHC
 
+ghcAnsiPretty :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => a -> Doc
+ghcAnsiPretty = ghcAnsiPrettyWith defAnsiPrettyOpts
 
-gAnsiPrettyWith :: forall a. (Generic a, HasDatatypeInfo a, All2 AnsiPretty (Code a)) => AnsiPrettyOpts -> a -> Doc
-gAnsiPrettyWith opts x = gAnsiPrettyS opts (from x) (datatypeInfo (Proxy :: Proxy a))
+ghcAnsiPrettyWith :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => AnsiPrettyOpts -> a -> Doc
+ghcAnsiPrettyWith opts x = sopAnsiPrettyS opts (gfrom x) (gdatatypeInfo (Proxy :: Proxy a))
 
-gAnsiPretty :: forall a. (Generic a, HasDatatypeInfo a, All2 AnsiPretty (Code a)) => a -> Doc
-gAnsiPretty = gAnsiPrettyWith defAnsiPrettyOpts
+-- SOP
 
-gAnsiPrettyS :: (All2 AnsiPretty xss) => AnsiPrettyOpts -> SOP I xss -> DatatypeInfo xss -> Doc
-gAnsiPrettyS _opts (SOP (Z (I x :* Nil))) (Newtype _ _ _)  = ansiPretty x
-gAnsiPrettyS  opts (SOP (Z xs)) (ADT _ _ (ci :* Nil)) = poPrettyRecord opts (constructorName ci) (gAnsiPrettyP opts xs (fieldInfo ci))
-gAnsiPrettyS _opts (SOP (Z _ )) _ = error "gAnsiPrettyS: redundant Z case"
-gAnsiPrettyS  opts (SOP (S xss)) (ADT m d (_ :* cis)) = gAnsiPrettyS opts (SOP xss) (ADT m d cis)
-gAnsiPrettyS _opts (SOP (S _)) _  = error "gAnsiPrettyS: redundant S case"
+sopAnsiPrettyWith :: forall a. (Generic a, HasDatatypeInfo a, All2 AnsiPretty (Code a)) => AnsiPrettyOpts -> a -> Doc
+sopAnsiPrettyWith opts x = sopAnsiPrettyS opts (from x) (datatypeInfo (Proxy :: Proxy a))
 
-gAnsiPrettyP :: (All AnsiPretty xs) => AnsiPrettyOpts -> NP I xs -> NP FieldInfo xs -> [Doc]
-gAnsiPrettyP _opts Nil Nil = []
-gAnsiPrettyP  opts (I x :* xs) (FieldInfo fieldName :* fis) = poPrettyField opts fieldName (ansiPretty x) : gAnsiPrettyP opts xs fis
-gAnsiPrettyP _opts _ _ = error "gAnsiPrettyP: redundant case"
+sopAnsiPretty :: forall a. (Generic a, HasDatatypeInfo a, All2 AnsiPretty (Code a)) => a -> Doc
+sopAnsiPretty = sopAnsiPrettyWith defAnsiPrettyOpts
+
+sopAnsiPrettyS :: (All2 AnsiPretty xss) => AnsiPrettyOpts -> SOP I xss -> DatatypeInfo xss -> Doc
+sopAnsiPrettyS  opts (SOP (Z (I x :* Nil))) (Newtype _ _ ci)  = poPrettyNewtype opts (constructorName ci) (ansiPretty x)
+sopAnsiPrettyS  opts (SOP (Z xs)) (ADT _ _ (ci :* Nil)) = poPrettyRecord opts (constructorName ci) (gAnsiPrettyP xs (fieldInfo ci))
+sopAnsiPrettyS _opts (SOP (Z _ )) _ = error "gAnsiPrettyS: redundant Z case"
+sopAnsiPrettyS  opts (SOP (S xss)) (ADT m d (_ :* cis)) = sopAnsiPrettyS opts (SOP xss) (ADT m d cis)
+sopAnsiPrettyS _opts (SOP (S _)) _  = error "gAnsiPrettyS: redundant S case"
+
+gAnsiPrettyP :: (All AnsiPretty xs) => NP I xs -> NP FieldInfo xs -> [(FieldName, Doc)]
+gAnsiPrettyP Nil Nil = []
+gAnsiPrettyP (I x :* xs) (FieldInfo fieldName :* fis) = (fieldName, ansiPretty x) : gAnsiPrettyP xs fis
+gAnsiPrettyP _ _ = error "gAnsiPrettyP: redundant case"
 
 constructorName :: ConstructorInfo a -> ConstructorName
 constructorName (Constructor name) = name
