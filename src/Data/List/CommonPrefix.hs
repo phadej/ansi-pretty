@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveTraversable #-}
@@ -10,11 +11,15 @@
 module Data.List.CommonPrefix where
 
 import Data.Data (Typeable, Data)
-import Data.Foldable (Foldable)
 import Data.Semigroup
-import Data.Traversable (Traversable)
 import GHC.Generics (Generic)
 
+#if !MIN_VERSION_base(4,8,0)
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
+#endif
+
+-- | Longest common prefix of lists.
 newtype CommonPrefix a = CommonPrefix [a]
   deriving (Eq, Ord, Read, Show, Functor, Foldable, Traversable, Typeable, Data, Generic)
 

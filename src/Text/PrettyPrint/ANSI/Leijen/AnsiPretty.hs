@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DefaultSignatures #-}
@@ -14,8 +15,6 @@ module Text.PrettyPrint.ANSI.Leijen.AnsiPretty (
   -- * Class
   AnsiPretty(..),
   -- * Generics
-  AnsiPrettyOpts(..),
-  defAnsiPrettyOpts,
   -- ** GHC
   ghcAnsiPretty,
   ghcAnsiPrettyWith,
@@ -23,23 +22,61 @@ module Text.PrettyPrint.ANSI.Leijen.AnsiPretty (
   sopAnsiPretty,
   sopAnsiPrettyWith,
   sopAnsiPrettyS,
+  -- ** Options
+  AnsiPrettyOpts(..),
+  defAnsiPrettyOpts,
   -- * Re-exports
   -- | 'Text.PrettyPrint.ANSI.Leijen'
    module PP,
+   -- ** From generics-sop
+   ConstructorName,
+   FieldName,
   ) where
 
 import           Control.Arrow (first)
+
 import           Data.List as L
 import           Data.List.CommonPrefix (CommonPrefix(CommonPrefix), getCommonPrefix)
 import           Data.List.NonEmpty as NonEmpty
-import           Data.Semigroup (sconcat, (<>))
-import           Data.Text as T
-import           Data.Time
+import qualified Data.Semigroup
+import           Data.Semigroup hiding (All)
 import qualified GHC.Generics as GHC
 import           Generics.SOP as SOP
 import           Generics.SOP.GGP as SOP
 import           Text.PrettyPrint.ANSI.Leijen as PP hiding ((<>), (<$>), semiBraces, Pretty)
 
+#if __HADDOCK__
+import qualified Text.PrettyPrint.ANSI.Leijen
+#endif
+
+import qualified Data.Foldable as Foldable
+
+-- For instances
+import           Data.Int
+import           Data.Word
+import           Numeric.Natural
+import qualified Data.Aeson as Aeson
+import qualified Data.Array.IArray as Array
+import qualified Data.Array.Unboxed as Array
+import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.HashSet as HashSet
+import qualified Data.IntMap as IntMap
+import qualified Data.IntSet as IntSet
+import qualified Data.Map as Map
+import qualified Data.Ratio as Ratio
+import qualified Data.Fixed as Fixed
+import qualified Data.Sequence as Seq
+import qualified Data.Scientific as Scientfic
+import qualified Data.Set as Set
+import qualified Data.Tagged as Tagged
+import qualified Data.Text as ST
+import qualified Data.Text.Lazy as LT
+import qualified Data.Time as Time
+import qualified Data.Vector as V
+import qualified Data.Vector.Storable as S
+import qualified Data.Vector.Unboxed as U
+
+-- | Generically derivable colorful analogue of 'Text.PrettyPrint.ANSI.Leijen.Pretty'
 class AnsiPretty a where
   ansiPretty :: a -> Doc
 
@@ -52,11 +89,21 @@ class AnsiPretty a where
 semiBraces :: [Doc] -> Doc
 semiBraces = encloseSep (dullblue lbrace) (dullblue rbrace) (dullblue semi)
 
+commaParens :: [Doc] -> Doc
+commaParens = encloseSep (dullblue lparen) (dullblue rparen) (dullblue comma)
+
 prettyNewtype :: ConstructorName -> Doc -> Doc
 prettyNewtype = const id
 
 prettyField :: AnsiPretty a => String -> a -> Doc
 prettyField name value = black (text name) <+> blue equals <+> ansiPretty value
+
+ansiPrettyNewtype :: AnsiPretty a => String -> a -> Doc
+ansiPrettyNewtype name x = hang 2 (cyan (text name)) </> ansiPretty x
+
+ansiPrettyMap :: (AnsiPretty k, AnsiPretty v) => String -> [(k, v)] -> Doc
+ansiPrettyMap name kv = hang 2 (cyan (text name)) </> encloseSep (dullgreen lbracket) (dullgreen rbracket) (dullgreen colon) (fmap f kv)
+  where f (k, v) = ansiPretty k <+> blue colon <+> ansiPretty v
 
 prettyRecord :: String -> [(FieldName, Doc)] -> Doc
 prettyRecord name fields = hang 2 (cyan (text name) </> semiBraces (L.map (uncurry prettyField) fields'))
@@ -67,7 +114,7 @@ data AnsiPrettyOpts = AnsiPrettyOpts
   { poPrettyNewtype :: ConstructorName -> Doc -> Doc
   , poPrettyRecord  :: ConstructorName -> [(FieldName, Doc)] -> Doc
   }
- 
+
 defAnsiPrettyOpts :: AnsiPrettyOpts
 defAnsiPrettyOpts = AnsiPrettyOpts prettyNewtype prettyRecord
 
@@ -139,8 +186,102 @@ instance AnsiPretty a => AnsiPretty (Maybe a) where
   ansiPretty (Just x) = ansiPretty x
   ansiPretty Nothing  = dullcyan (string "Nothing")
 
-instance AnsiPretty Text where
-  ansiPretty = ansiPretty . T.unpack
+instance (AnsiPretty a, AnsiPretty b) => AnsiPretty (Either a b)
 
-instance AnsiPretty UTCTime where
-  ansiPretty = ansiPretty . show
+-- Tuple
+instance (AnsiPretty a, AnsiPretty b) => AnsiPretty (a, b) where
+  ansiPretty (a, b) = commaParens [ansiPretty a, ansiPretty b]
+instance (AnsiPretty a, AnsiPretty b, AnsiPretty c) => AnsiPretty (a, b, c) where
+  ansiPretty (a, b, c) = commaParens [ansiPretty a, ansiPretty b, ansiPretty c]
+instance (AnsiPretty a, AnsiPretty b, AnsiPretty c, AnsiPretty d) => AnsiPretty (a, b, c, d) where
+  ansiPretty (a, b, c, d) = commaParens [ansiPretty a, ansiPretty b, ansiPretty c, ansiPretty d]
+instance (AnsiPretty a, AnsiPretty b, AnsiPretty c, AnsiPretty d, AnsiPretty e) => AnsiPretty (a, b, c, d, e) where
+  ansiPretty (a, b, c, d, e) = commaParens [ansiPretty a, ansiPretty b, ansiPretty c, ansiPretty d, ansiPretty e]
+
+-- Word
+instance AnsiPretty Word where ansiPretty = dullyellow . integer . toInteger
+
+instance AnsiPretty Word8 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Word16 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Word32 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Word64 where ansiPretty = dullyellow . integer . toInteger
+
+instance AnsiPretty Int8 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Int16 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Int32 where ansiPretty = dullyellow . integer . toInteger
+instance AnsiPretty Int64 where ansiPretty = dullyellow . integer . toInteger
+
+instance AnsiPretty Natural where ansiPretty = dullyellow . integer . toInteger
+
+instance Fixed.HasResolution e => AnsiPretty (Fixed.Fixed e) where ansiPretty = dullyellow . text . show
+instance (AnsiPretty a, Integral a) => AnsiPretty (Ratio.Ratio a) where
+  ansiPretty r = ansiPretty (Ratio.numerator r) <+> dullyellow (char '%') <+> ansiPretty (Ratio.denominator r)
+
+-- Generic instances
+instance AnsiPretty a => AnsiPretty (CommonPrefix a)
+
+-- aeson
+instance AnsiPretty Aeson.Value where
+  ansiPretty (Aeson.Object o) = ansiPretty o
+  ansiPretty (Aeson.Array a)  = ansiPretty a
+  ansiPretty (Aeson.String s) = ansiPretty s
+  ansiPretty (Aeson.Number s) = ansiPretty s
+  ansiPretty (Aeson.Bool b)   = ansiPretty b
+  ansiPretty Aeson.Null       = cyan (text "Null")
+
+-- array
+instance (AnsiPretty i, AnsiPretty e, Array.Ix i) => AnsiPretty (Array.Array i e) where ansiPretty = ansiPrettyMap "Array" . Array.assocs
+instance (AnsiPretty i, AnsiPretty e, Array.Ix i, Array.IArray Array.UArray e) => AnsiPretty (Array.UArray i e) where ansiPretty = ansiPrettyMap "UArray" . Array.assocs
+
+-- containers
+instance AnsiPretty IntSet.IntSet where
+  ansiPretty = ansiPrettyNewtype "IntSet" . IntSet.toList
+instance AnsiPretty v => AnsiPretty (IntMap.IntMap v) where
+  ansiPretty = ansiPrettyMap "IntMap" . IntMap.toList
+instance AnsiPretty a => AnsiPretty (Set.Set a) where
+   ansiPretty = ansiPrettyNewtype "Set" . Set.toList
+instance (AnsiPretty k, AnsiPretty v) => AnsiPretty (Map.Map k v) where
+  ansiPretty = ansiPrettyMap "Map" . Map.toList
+
+instance AnsiPretty a => AnsiPretty (Seq.Seq a) where ansiPretty = ansiPrettyNewtype "Seq" . Foldable.toList
+
+-- semigroups
+instance AnsiPretty a => AnsiPretty (NonEmpty a) where
+  ansiPretty = ansiPretty . toList
+
+instance AnsiPretty a => AnsiPretty (Min a)
+instance AnsiPretty a => AnsiPretty (Max a)
+instance AnsiPretty a => AnsiPretty (First a)
+instance AnsiPretty a => AnsiPretty (Last a)
+instance AnsiPretty m => AnsiPretty (WrappedMonoid m)
+instance AnsiPretty a => AnsiPretty (Dual a)
+instance AnsiPretty Data.Semigroup.All
+instance AnsiPretty Any
+instance AnsiPretty a => AnsiPretty (Sum a)
+instance AnsiPretty a => AnsiPretty (Product a)
+instance AnsiPretty a => AnsiPretty (Option a)
+instance (AnsiPretty a, AnsiPretty b) => AnsiPretty (Arg a b)
+
+-- scientific
+instance AnsiPretty Scientfic.Scientific where ansiPretty = dullyellow . text . show
+
+-- tagged
+instance AnsiPretty a => AnsiPretty (Tagged.Tagged t a) where ansiPretty = ansiPretty . Tagged.untag
+
+-- text
+instance AnsiPretty LT.Text where ansiPretty = ansiPretty . LT.unpack
+instance AnsiPretty ST.Text where ansiPretty = ansiPretty . ST.unpack
+
+-- time
+instance AnsiPretty Time.UTCTime where ansiPretty = ansiPretty . show
+
+-- vector
+instance AnsiPretty a => AnsiPretty (V.Vector a) where ansiPretty = ansiPrettyNewtype "Vector" . V.toList
+instance (AnsiPretty a, S.Storable a) => AnsiPretty (S.Vector a) where ansiPretty = ansiPrettyNewtype "S.Vector" . S.toList
+instance (AnsiPretty a, U.Unbox a) => AnsiPretty (U.Vector a) where ansiPretty = ansiPrettyNewtype "U.Vector" . U.toList
+
+-- unordered-containers
+instance AnsiPretty a => AnsiPretty (HashSet.HashSet a) where ansiPretty = ansiPrettyNewtype "HashSet" . HashSet.toList
+
+instance (AnsiPretty k, AnsiPretty v) => AnsiPretty (HashMap.HashMap k v) where
+  ansiPretty = ansiPrettyMap "HashMap" . HashMap.toList
