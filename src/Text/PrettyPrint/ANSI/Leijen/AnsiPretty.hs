@@ -168,6 +168,12 @@ instance AnsiPretty Integer where
 instance AnsiPretty Int where
   ansiPretty = dullyellow . int
 
+instance AnsiPretty Float where
+  ansiPretty = dullyellow . float
+
+instance AnsiPretty Double where
+  ansiPretty = dullyellow . double
+
 instance AnsiPretty Doc where
   ansiPretty = id
 
