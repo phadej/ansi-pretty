@@ -1,5 +1,5 @@
 name: ansi-pretty
-version: 0.1.0.0
+version: 0.1.1.0
 synopsis: AnsiPretty for ansi-wl-pprint
 description: |
   'AnsiPretty' type class, more colorful than 'Pretty'.
@@ -11,6 +11,7 @@ category: Web
 tested-with: GHC==7.8.4, GHC==7.10.2
 extra-source-files:
 - README.md
+- CHANGELOG.md
 
 ghc-options: -Wall
 
