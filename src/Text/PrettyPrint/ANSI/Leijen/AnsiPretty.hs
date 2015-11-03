@@ -5,6 +5,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- |
@@ -76,11 +77,18 @@ import qualified Data.Vector as V
 import qualified Data.Vector.Storable as S
 import qualified Data.Vector.Unboxed as U
 
+#if !MIN_VERSION_generics_sop(0,2,0)
+type SListI (a :: k) = SingI a
+type SList (a :: k) = Sing a
+sList :: forall xs. SListI xs => SList xs
+sList = sing
+#endif
+
 -- | Generically derivable colorful analogue of 'Text.PrettyPrint.ANSI.Leijen.Pretty'
 class AnsiPretty a where
   ansiPretty :: a -> Doc
 
-  default ansiPretty :: (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => a -> Doc
+  default ansiPretty :: (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => a -> Doc
   ansiPretty = ghcAnsiPretty
 
   ansiPrettyList :: [a] -> Doc
@@ -120,10 +128,10 @@ defAnsiPrettyOpts = AnsiPrettyOpts prettyNewtype prettyRecord
 
 -- GHC
 
-ghcAnsiPretty :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => a -> Doc
+ghcAnsiPretty :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => a -> Doc
 ghcAnsiPretty = ghcAnsiPrettyWith defAnsiPrettyOpts
 
-ghcAnsiPrettyWith :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SingI (GCode a)) => AnsiPrettyOpts -> a -> Doc
+ghcAnsiPrettyWith :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => AnsiPrettyOpts -> a -> Doc
 ghcAnsiPrettyWith opts x = sopAnsiPrettyS opts (gfrom x) (gdatatypeInfo (Proxy :: Proxy a))
 
 -- SOP
@@ -152,13 +160,13 @@ constructorName (Infix name _ _) = name
 constructorName (Record name _) = name
 
 fieldInfo :: ConstructorInfo xs -> NP FieldInfo xs
-fieldInfo (Constructor _) = constructorFieldInfos 0 sing
+fieldInfo (Constructor _) = constructorFieldInfos 0 sList
 fieldInfo (Infix _ _ _) = FieldInfo "_lhs" :* FieldInfo "_rhs" :* Nil
 fieldInfo (Record _ fi) = fi
 
-constructorFieldInfos :: forall (xs :: [*]). Int -> Sing xs -> NP FieldInfo xs
+constructorFieldInfos :: forall (xs :: [*]). Int -> SList xs -> NP FieldInfo xs
 constructorFieldInfos _ SNil  = Nil
-constructorFieldInfos n SCons = FieldInfo ("_" <> show n) :* constructorFieldInfos (n+1) sing
+constructorFieldInfos n SCons = FieldInfo ("_" <> show n) :* constructorFieldInfos (n+1) sList
 
 -- Instances
 
