@@ -1,5 +1,5 @@
 name: ansi-pretty
-version: 0.1.1.0
+version: 0.1.2.0
 synopsis: AnsiPretty for ansi-wl-pprint
 description: |
   'AnsiPretty' type class, more colorful than 'Pretty'.

@@ -1,3 +1,7 @@
+# 0.1.2.0
+
+- `AnsiPretty` for other types in `time`
+
 # 0.1.1.0
 
 - Accept `generics-sop-0.2`
