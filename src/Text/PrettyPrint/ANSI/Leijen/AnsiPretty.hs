@@ -288,6 +288,14 @@ instance AnsiPretty ST.Text where ansiPretty = ansiPretty . ST.unpack
 
 -- time
 instance AnsiPretty Time.UTCTime where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.Day where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.TimeZone where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.TimeOfDay where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.LocalTime where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.ZonedTime where ansiPretty = ansiPretty . show
+-- instance AnsiPretty Time.UniversalTime where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.DiffTime where ansiPretty = ansiPretty . show
+instance AnsiPretty Time.NominalDiffTime where ansiPretty = ansiPretty . show
 
 -- vector
 instance AnsiPretty a => AnsiPretty (V.Vector a) where ansiPretty = ansiPrettyNewtype "Vector" . V.toList
