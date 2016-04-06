@@ -145,7 +145,7 @@ sopAnsiPretty = sopAnsiPrettyWith defAnsiPrettyOpts
 sopAnsiPrettyS :: (All2 AnsiPretty xss) => AnsiPrettyOpts -> SOP I xss -> DatatypeInfo xss -> Doc
 sopAnsiPrettyS  opts (SOP (Z (I x :* Nil))) (Newtype _ _ ci)  = poPrettyNewtype opts (constructorName ci) (ansiPretty x)
 sopAnsiPrettyS  opts (SOP (Z xs)) (ADT _ _ (ci :* Nil)) = poPrettyRecord opts (constructorName ci) (gAnsiPrettyP xs (fieldInfo ci))
-sopAnsiPrettyS _opts (SOP (Z _ )) _ = error "gAnsiPrettyS: redundant Z case"
+sopAnsiPrettyS _opts (SOP (Z _ )) _ = error "gAnsiPrettyS: redundant Z case" -- TODO
 sopAnsiPrettyS  opts (SOP (S xss)) (ADT m d (_ :* cis)) = sopAnsiPrettyS opts (SOP xss) (ADT m d cis)
 sopAnsiPrettyS _opts (SOP (S _)) _  = error "gAnsiPrettyS: redundant S case"
 
