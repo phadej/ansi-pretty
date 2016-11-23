@@ -50,6 +50,7 @@ import           Text.PrettyPrint.ANSI.Leijen as PP hiding ((<>), (<$>), semiBra
 import qualified Text.PrettyPrint.ANSI.Leijen
 #endif
 
+import qualified Text.PrettyPrint.ANSI.Leijen as L
 import qualified Data.Foldable as Foldable
 
 -- For instances
@@ -67,7 +68,7 @@ import qualified Data.Map as Map
 import qualified Data.Ratio as Ratio
 import qualified Data.Fixed as Fixed
 import qualified Data.Sequence as Seq
-import qualified Data.Scientific as Scientfic
+import qualified Data.Scientific as Sci
 import qualified Data.Set as Set
 import qualified Data.Tagged as Tagged
 import qualified Data.Text as ST
@@ -236,12 +237,24 @@ instance AnsiPretty a => AnsiPretty (CommonPrefix a)
 
 -- aeson
 instance AnsiPretty Aeson.Value where
-  ansiPretty (Aeson.Object o) = ansiPretty o
-  ansiPretty (Aeson.Array a)  = ansiPretty a
-  ansiPretty (Aeson.String s) = ansiPretty s
-  ansiPretty (Aeson.Number s) = ansiPretty s
-  ansiPretty (Aeson.Bool b)   = ansiPretty b
-  ansiPretty Aeson.Null       = cyan (text "Null")
+    ansiPretty (Aeson.Object o)
+        = encloseSep (dullgreen lbrace) (dullgreen rbrace) (dullgreen comma)
+        $ fmap f $ HashMap.toList o
+      where
+        f (k, v) = dullwhite (ansiPretty k) L.<> blue colon <+> ansiPretty v
+
+    ansiPretty (Aeson.Array a)
+        = encloseSep (dullgreen lbracket) (dullgreen rbracket) (dullgreen comma)
+        $ fmap ansiPretty $ V.toList a
+
+    ansiPretty (Aeson.Number s)
+        = maybe (ansiPretty s) (ansiPretty :: Int -> Doc)
+        $ Sci.toBoundedInteger s
+
+    ansiPretty (Aeson.String s)   = ansiPretty (show s)
+    ansiPretty (Aeson.Bool True)  = dullyellow $ string "true"
+    ansiPretty (Aeson.Bool False) = dullyellow $ string "false"
+    ansiPretty Aeson.Null         = cyan (text "Null")
 
 -- array
 instance (AnsiPretty i, AnsiPretty e, Array.Ix i) => AnsiPretty (Array.Array i e) where ansiPretty = ansiPrettyMap "Array" . Array.assocs
@@ -277,7 +290,7 @@ instance AnsiPretty a => AnsiPretty (Option a)
 instance (AnsiPretty a, AnsiPretty b) => AnsiPretty (Arg a b)
 
 -- scientific
-instance AnsiPretty Scientfic.Scientific where ansiPretty = dullyellow . text . show
+instance AnsiPretty Sci.Scientific where ansiPretty = dullyellow . text . show
 
 -- tagged
 instance AnsiPretty a => AnsiPretty (Tagged.Tagged t a) where ansiPretty = ansiPretty . Tagged.untag
