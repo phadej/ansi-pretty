@@ -155,10 +155,12 @@ gAnsiPrettyP Nil Nil = []
 gAnsiPrettyP (I x :* xs) (FieldInfo fieldName :* fis) = (fieldName, ansiPretty x) : gAnsiPrettyP xs fis
 gAnsiPrettyP _ _ = error "gAnsiPrettyP: redundant case"
 
+#if !MIN_VERSION_generics_sop(0,2,3)
 constructorName :: ConstructorInfo a -> ConstructorName
 constructorName (Constructor name) = name
 constructorName (Infix name _ _) = name
 constructorName (Record name _) = name
+#endif
 
 fieldInfo :: ConstructorInfo xs -> NP FieldInfo xs
 fieldInfo (Constructor _) = constructorFieldInfos 0 sList

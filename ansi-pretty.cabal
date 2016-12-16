@@ -3,7 +3,7 @@
 -- see: https://github.com/sol/hpack
 
 name:           ansi-pretty
-version:        0.1.2.0
+version:        0.1.2.1
 synopsis:       AnsiPretty for ansi-wl-pprint
 description:    'AnsiPretty' type class, more colorful than 'Pretty'.
 category:       Web
