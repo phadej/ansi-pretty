@@ -1,3 +1,7 @@
+# 0.1.2.1
+
+- Fix compilation issue with generics-sop-0.2.3.0
+
 # 0.1.2.0
 
 - `AnsiPretty` for other types in `time`
