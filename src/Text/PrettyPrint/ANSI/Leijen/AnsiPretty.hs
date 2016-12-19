@@ -152,7 +152,7 @@ sopAnsiPrettyS _opts (SOP (S _)) _  = error "gAnsiPrettyS: redundant S case"
 
 gAnsiPrettyP :: (All AnsiPretty xs) => NP I xs -> NP FieldInfo xs -> [(FieldName, Doc)]
 gAnsiPrettyP Nil Nil = []
-gAnsiPrettyP (I x :* xs) (FieldInfo fieldName :* fis) = (fieldName, ansiPretty x) : gAnsiPrettyP xs fis
+gAnsiPrettyP (I x :* xs) (FieldInfo f :* fis) = (f, ansiPretty x) : gAnsiPrettyP xs fis
 gAnsiPrettyP _ _ = error "gAnsiPrettyP: redundant case"
 
 #if !MIN_VERSION_generics_sop(0,2,3)
