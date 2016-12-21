@@ -89,7 +89,7 @@ sList = sing
 class AnsiPretty a where
   ansiPretty :: a -> Doc
 
-  default ansiPretty :: (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => a -> Doc
+  default ansiPretty :: (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a) => a -> Doc
   ansiPretty = ghcAnsiPretty
 
   ansiPrettyList :: [a] -> Doc
@@ -129,10 +129,10 @@ defAnsiPrettyOpts = AnsiPrettyOpts prettyNewtype prettyRecord
 
 -- GHC
 
-ghcAnsiPretty :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => a -> Doc
+ghcAnsiPretty :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a) => a -> Doc
 ghcAnsiPretty = ghcAnsiPrettyWith defAnsiPrettyOpts
 
-ghcAnsiPrettyWith :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a, SListI (GCode a)) => AnsiPrettyOpts -> a -> Doc
+ghcAnsiPrettyWith :: forall a. (GHC.Generic a, All2 AnsiPretty (GCode a), GFrom a, GDatatypeInfo a) => AnsiPrettyOpts -> a -> Doc
 ghcAnsiPrettyWith opts x = sopAnsiPrettyS opts (gfrom x) (gdatatypeInfo (Proxy :: Proxy a))
 
 -- SOP
@@ -153,7 +153,9 @@ sopAnsiPrettyS _opts (SOP (S _)) _  = error "gAnsiPrettyS: redundant S case"
 gAnsiPrettyP :: (All AnsiPretty xs) => NP I xs -> NP FieldInfo xs -> [(FieldName, Doc)]
 gAnsiPrettyP Nil Nil = []
 gAnsiPrettyP (I x :* xs) (FieldInfo f :* fis) = (f, ansiPretty x) : gAnsiPrettyP xs fis
+#if __GLASGOW_HASKELL__ < 800
 gAnsiPrettyP _ _ = error "gAnsiPrettyP: redundant case"
+#endif
 
 #if !MIN_VERSION_generics_sop(0,2,3)
 constructorName :: ConstructorInfo a -> ConstructorName
@@ -231,7 +233,11 @@ instance AnsiPretty Int64 where ansiPretty = dullyellow . integer . toInteger
 instance AnsiPretty Natural where ansiPretty = dullyellow . integer . toInteger
 
 instance Fixed.HasResolution e => AnsiPretty (Fixed.Fixed e) where ansiPretty = dullyellow . text . show
+#if MIN_VERSION_base(4,9,0)
+instance (AnsiPretty a) => AnsiPretty (Ratio.Ratio a) where
+#else
 instance (AnsiPretty a, Integral a) => AnsiPretty (Ratio.Ratio a) where
+#endif
   ansiPretty r = ansiPretty (Ratio.numerator r) <+> dullyellow (char '%') <+> ansiPretty (Ratio.denominator r)
 
 -- Generic instances

@@ -114,7 +114,7 @@ matrix:
         - ghc-7.10.3
         - libgmp-dev
     compiler: ! ': # ghc-7.10.3 cabal-1.22 lts-5.11'
-  - env: GHCVER=8.0.1 CABALVER=1.24 NOTESTS=YES
+  - env: GHCVER=8.0.1 CABALVER=1.24 PEDANTIC=YES
     addons:
       apt:
         sources:
