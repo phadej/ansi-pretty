@@ -4,6 +4,7 @@
 
 name:           ansi-pretty
 version:        0.1.2.1
+x-revision:     1
 synopsis:       AnsiPretty for ansi-wl-pprint
 description:    'AnsiPretty' type class, more colorful than 'Pretty'.
 category:       Web
