@@ -26,7 +26,7 @@ newtype CommonPrefix a = CommonPrefix [a]
 getCommonPrefix :: CommonPrefix a -> [a]
 getCommonPrefix (CommonPrefix pfx) = pfx
 
-instance Eq a => Semigroup (CommonPrefix a) where
+instance Eq a => Data.Semigroup.Semigroup (CommonPrefix a) where
   CommonPrefix as <> CommonPrefix bs = CommonPrefix (impl as bs)
     where
       impl []     _       = []
